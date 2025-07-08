@@ -175,3 +175,4 @@ trae-config-local.json
 
 # Cursor rules
 .cursor/
+.vscode/

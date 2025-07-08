@@ -22,6 +22,7 @@ class LLMProvider(Enum):
     OPENROUTER = "openrouter"
     DOUBAO = "doubao"
     GOOGLE = "google"
+    QWEN = "qwen"
 
 
 class LLMClient:
@@ -62,6 +63,10 @@ class LLMClient:
                 from .google_client import GoogleClient
 
                 self.client = GoogleClient(model_parameters)
+            case LLMProvider.QWEN:
+                from .qwen_client import QwenClient
+
+                self.client = QwenClient(model_parameters)
 
     def set_trajectory_recorder(self, recorder: TrajectoryRecorder | None) -> None:
         """Set the trajectory recorder for the underlying client."""

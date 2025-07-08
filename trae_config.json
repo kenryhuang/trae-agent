@@ -67,10 +67,20 @@
       "temperature": 0.5,
       "top_p": 1,
       "max_retries": 20
+    },
+    "qwen": {
+      "api_key": "sk-b697b8849a73436bacc4dbeffeac5b78",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen-max-latest",
+      "max_tokens": 8192,
+      "temperature": 0.5,
+      "top_p": 1,
+      "top_k": 0,
+      "max_retries": 10
     }
   },
   "lakeview_config": {
-    "model_provider": "anthropic",
-    "model_name": "claude-sonnet-4-20250514"
+    "model_provider": "qwen",
+    "model_name": "qwen-plus-2025-04-28"
   }
 }
