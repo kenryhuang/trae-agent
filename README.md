@@ -58,6 +58,8 @@ export OPENROUTER_SITE_URL="https://your-site.com"
 export OPENROUTER_SITE_NAME="Your App Name"
 ```
 
+Although you can pass your API key directly using the `api_key` argument, we suggest utilizing [python-dotenv](https://pypi.org/project/python-dotenv/) to add `MODEL_API_KEY="My API Key"` to your `.env` file. This approach helps prevent your API key from being exposed in source control.
+
 ### Basic Usage
 
 ```bash
@@ -185,6 +187,11 @@ Trae Agent uses a JSON configuration file (`trae_config.json`) for settings:
     "model_name": "claude-sonnet-4-20250514"
   }
 }
+```
+**WARNING:**
+For Doubao users, please use the following base_url.
+```
+base_url=https://ark.cn-beijing.volces.com/api/v3/
 ```
 
 **Configuration Priority:**
