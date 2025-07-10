@@ -37,7 +37,12 @@ class OpenAIClient(BaseLLMClient):
                 "OpenAI API key not provided. Set OPENAI_API_KEY in environment variables or config file."
             )
 
-        self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key)
+        if "OPENAI_BASE_URL" in os.environ:
+            # If OPENAI_BASE_URL is set, which means the user wants to use a specific openai compatible api provider,
+            # we should use the base url from the environment variable
+            self.base_url = os.environ["OPENAI_BASE_URL"]
+
+        self.client: openai.OpenAI = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.message_history: ResponseInputParam = []
 
     @override
@@ -92,6 +97,7 @@ class OpenAIClient(BaseLLMClient):
                 break
             except Exception as e:
                 error_message += f"Error {i + 1}: {str(e)}\n"
+                print(error_message)
                 # Randomly sleep for 3-30 seconds
                 time.sleep(random.randint(3, 30))
                 continue
@@ -127,10 +133,10 @@ class OpenAIClient(BaseLLMClient):
         usage = None
         if response.usage:
             usage = LLMUsage(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                cache_read_input_tokens=response.usage.input_tokens_details.cached_tokens,
-                reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens,
+                input_tokens=response.usage.input_tokens or 0,
+                output_tokens=response.usage.output_tokens or 0,
+                cache_read_input_tokens=response.usage.input_tokens_details.cached_tokens or 0,
+                reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens or 0,
             )
 
         llm_response = LLMResponse(
@@ -189,9 +195,7 @@ class OpenAIClient(BaseLLMClient):
                 elif msg.role == "user":
                     openai_messages.append({"role": "user", "content": msg.content})
                 elif msg.role == "assistant":
-                    openai_messages.append(
-                        {"role": "assistant", "content": msg.content}
-                    )
+                    openai_messages.append({"role": "assistant", "content": msg.content})
                 else:
                     raise ValueError(f"Invalid message role: {msg.role}")
         return openai_messages
@@ -205,9 +209,7 @@ class OpenAIClient(BaseLLMClient):
             type="function_call",
         )
 
-    def parse_tool_call_result(
-        self, tool_call_result: ToolResult
-    ) -> FunctionCallOutput:
+    def parse_tool_call_result(self, tool_call_result: ToolResult) -> FunctionCallOutput:
         """Parse the tool call result from the LLM response to FunctionCallOutput format."""
         result_content: str = ""
         if tool_call_result.result is not None:

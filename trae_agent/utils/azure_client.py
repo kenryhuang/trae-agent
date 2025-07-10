@@ -148,8 +148,8 @@ class AzureClient(BaseLLMClient):
             finish_reason=choice.finish_reason,
             model=response.model,
             usage=LLMUsage(
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=response.usage.completion_tokens,
+                input_tokens=response.usage.prompt_tokens or 0,
+                output_tokens=response.usage.completion_tokens or 0,
             )
             if response.usage
             else None,
@@ -176,9 +176,7 @@ class AzureClient(BaseLLMClient):
             )
         elif llm_response.content:
             self.message_history.append(
-                ChatCompletionAssistantMessageParam(
-                    content=llm_response.content, role="assistant"
-                )
+                ChatCompletionAssistantMessageParam(content=llm_response.content, role="assistant")
             )
 
         if self.trajectory_recorder:
@@ -196,9 +194,7 @@ class AzureClient(BaseLLMClient):
     def supports_tool_calling(self, model_parameters: ModelParameters) -> bool:
         return True
 
-    def parse_messages(
-        self, messages: list[LLMMessage]
-    ) -> list[ChatCompletionMessageParam]:
+    def parse_messages(self, messages: list[LLMMessage]) -> list[ChatCompletionMessageParam]:
         azure_messages: list[ChatCompletionMessageParam] = []
         for msg in messages:
             if msg.tool_call:
@@ -246,9 +242,7 @@ class AzureClient(BaseLLMClient):
                 if not msg.content:
                     raise ValueError("Assistant message content is required")
                 azure_messages.append(
-                    ChatCompletionAssistantMessageParam(
-                        content=msg.content, role="assistant"
-                    )
+                    ChatCompletionAssistantMessageParam(content=msg.content, role="assistant")
                 )
             else:
                 raise ValueError(f"Invalid message role: {msg.role}")
