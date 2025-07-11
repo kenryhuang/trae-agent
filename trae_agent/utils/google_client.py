@@ -4,7 +4,6 @@
 """Google Gemini API client wrapper with tool integration."""
 
 import json
-import os
 import random
 import time
 import traceback
@@ -25,16 +24,6 @@ class GoogleClient(BaseLLMClient):
 
     def __init__(self, model_parameters: ModelParameters):
         super().__init__(model_parameters)
-
-        if self.api_key == "":
-            google_api_key = os.getenv("GOOGLE_API_KEY")
-            if google_api_key:
-                self.api_key = google_api_key
-
-        if self.api_key == "":
-            raise ValueError(
-                "Google API key not provided. Set GOOGLE_API_KEY in environment variables or config file."
-            )
 
         self.client = genai.Client(api_key=self.api_key)
         self.message_history: list[types.Content] = []
@@ -79,7 +68,7 @@ class GoogleClient(BaseLLMClient):
                     types.FunctionDeclaration(
                         name=tool.name,
                         description=tool.description,
-                        parameters=tool.get_input_schema(),
+                        parameters=tool.get_input_schema(),  # pyright: ignore[reportArgumentType]
                     )
                     for tool in tools
                 ]
@@ -101,10 +90,13 @@ class GoogleClient(BaseLLMClient):
                 )
                 break
             except Exception as e:
-                tb = traceback.format_exc()
-                error_message += f"Error {i + 1}: {str(e)}\nTraceback:\n{tb}\n"
-                time.sleep(random.randint(3, 30))
-                continue
+                this_error_message = str(e)
+                error_message += f"Error {i + 1}: {this_error_message}\n"
+                sleep_time = random.randint(3, 30)
+                print(
+                    f"Google API call failed: {this_error_message} will sleep for {sleep_time} seconds and will retry."
+                )
+                time.sleep(sleep_time)
 
         if response is None:
             raise ValueError(

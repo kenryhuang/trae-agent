@@ -6,16 +6,17 @@ Python SDK for executing tasks with Trae Agent programmatically.
 import asyncio
 import os
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 from rich.console import Console
 
 # Import the necessary components from the main trae_agent package
 from trae_agent.agent import TraeAgent
+from trae_agent.agent.agent_basics import AgentExecution
 from trae_agent.utils.cli_console import CLIConsole
-from trae_agent.utils.config import Config, resolve_config_value
+from trae_agent.utils.config import Config, load_config
 
 # Load environment variables
 _ = load_dotenv()
@@ -23,10 +24,19 @@ _ = load_dotenv()
 console = Console()
 
 
+@dataclass
+class TraeAgentSDKResult:
+    success: bool
+    result: AgentExecution | None
+    trajectory_path: str | None
+    working_dir: str
+    config: Config | None
+
+
 class TraeAgentSDK:
     """SDK class for Trae Agent operations."""
 
-    def __init__(self, config: Optional[Config] = None):
+    def __init__(self, config: Config | None = None):
         """
         Initialize the SDK with optional configuration.
 
@@ -36,67 +46,6 @@ class TraeAgentSDK:
         self.config = config
         self.agent = None
         self.cli_console = None
-
-    def load_config(
-        self,
-        provider: Optional[str] = None,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        config_file: str = "trae_config.json",
-        max_steps: Optional[int] = 20,
-    ) -> Config:
-        """
-        Load configuration for the agent.
-
-        Args:
-            provider: LLM provider to use (default: openai)
-            model: Specific model to use
-            api_key: API key for the provider
-            config_file: Path to configuration file
-            max_steps: Maximum number of execution steps
-
-        Returns:
-            Config object with resolved configuration
-        """
-        config = Config(config_file)
-
-        # Resolve model provider
-        resolved_provider = resolve_config_value(provider, config.default_provider) or "openai"
-        config.default_provider = str(resolved_provider)
-
-        # Resolve configuration values with overrides
-        resolved_model = resolve_config_value(
-            model, config.model_providers[str(resolved_provider)].model
-        )
-
-        model_parameters = config.model_providers[str(resolved_provider)]
-        if resolved_model is not None:
-            model_parameters.model = str(resolved_model)
-
-        # Map providers to their environment variable names
-        env_var_map = {
-            "openai": "OPENAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY",
-            "azure": "AZURE_API_KEY",
-            "openrouter": "OPENROUTER_API_KEY",
-            "doubao": "DOUBAO_API_KEY",
-            "google": "GOOGLE_API_KEY",
-        }
-
-        resolved_api_key = resolve_config_value(
-            api_key,
-            config.model_providers[str(resolved_provider)].api_key,
-            env_var_map.get(str(resolved_provider)),
-        )
-
-        if resolved_api_key is not None:
-            model_parameters.api_key = str(resolved_api_key)
-
-        resolved_max_steps = resolve_config_value(max_steps, config.max_steps)
-        if resolved_max_steps is not None:
-            config.max_steps = int(resolved_max_steps)
-
-        return config
 
     def create_agent(self, config: Config) -> TraeAgent:
         """
@@ -122,17 +71,18 @@ class TraeAgentSDK:
     def run(
         self,
         task: str,
-        patch_path: Optional[str] = None,
-        provider: Optional[str] = None,
-        model: Optional[str] = None,
-        api_key: Optional[str] = None,
-        max_steps: Optional[int] = None,
-        working_dir: Optional[str] = None,
+        patch_path: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
+        model_base_url: str | None = None,
+        api_key: str | None = None,
+        max_steps: int | None = None,
+        working_dir: str | None = None,
         must_patch: bool = False,
         config_file: str = "trae_config.json",
-        trajectory_file: Optional[str] = None,
+        trajectory_file: str | None = None,
         verbose: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> TraeAgentSDKResult:
         """
         Run a task using Trae Agent.
 
@@ -168,24 +118,23 @@ class TraeAgentSDK:
             if verbose:
                 console.print(f"[red]Error changing directory: {e}[/red]")
             raise
+        trajectory_path: str | None = None
 
+        # Load or use existing configuration
+        if self.config is None:
+            config = load_config(config_file, provider, model, model_base_url, api_key, max_steps)
+        else:
+            config = self.config
         try:
             # Load task from file if it's a file path
             task_path = Path(task)
             if task_path.exists() and task_path.is_file():
                 task = task_path.read_text()
 
-            # Load or use existing configuration
-            if self.config is None:
-                config = self.load_config(provider, model, api_key, config_file, max_steps)
-            else:
-                config = self.config
-
             # Create agent
             agent = self.create_agent(config)
 
             # Set up trajectory recording
-            trajectory_path = None
             if trajectory_file:
                 trajectory_path = agent.setup_trajectory_recording(trajectory_file)
             else:
@@ -222,36 +171,35 @@ class TraeAgentSDK:
             if verbose:
                 console.print(f"\n[green]Trajectory saved to: {trajectory_path}[/green]")
 
-            return {
-                "success": True,
-                "result": result,
-                "trajectory_path": trajectory_path,
-                "working_dir": working_dir,
-                "config": {
-                    "provider": config.default_provider,
-                    "model": config.model_providers[config.default_provider].model,
-                    "max_steps": config.max_steps,
-                },
-            }
+            return TraeAgentSDKResult(
+                success=True,
+                result=result,
+                trajectory_path=trajectory_path,
+                working_dir=working_dir,
+                config=config,
+            )
 
         except KeyboardInterrupt:
             if verbose:
                 console.print("\n[yellow]Task execution interrupted by user[/yellow]")
-            return {
-                "success": False,
-                "error": "Task execution interrupted by user",
-                "trajectory_path": trajectory_path if "trajectory_path" in locals() else None,
-            }
+            return TraeAgentSDKResult(
+                success=False,
+                result=None,
+                trajectory_path=trajectory_path if "trajectory_path" in locals() else None,
+                working_dir=working_dir,
+                config=config,
+            )
         except Exception as e:
             if verbose:
                 console.print(f"\n[red]Unexpected error: {e}[/red]")
                 console.print(traceback.format_exc())
-            return {
-                "success": False,
-                "error": str(e),
-                "traceback": traceback.format_exc(),
-                "trajectory_path": trajectory_path if "trajectory_path" in locals() else None,
-            }
+            return TraeAgentSDKResult(
+                success=False,
+                result=None,
+                trajectory_path=trajectory_path if "trajectory_path" in locals() else None,
+                working_dir=working_dir,
+                config=config,
+            )
         finally:
             # Restore original working directory
             os.chdir(original_cwd)
